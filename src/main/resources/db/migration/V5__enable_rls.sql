@@ -1,18 +1,31 @@
--- Defense-in-depth: enable Row Level Security on every table.
--- Deployment is Option A (Supabase = managed Postgres only). The app connects
--- as role `postgres` (rolbypassrls = true), so RLS does not affect the backend.
--- We intentionally add NO policies: this blocks the Supabase `anon` /
--- `authenticated` roles (PostgREST) from reading or writing any row if the
--- `tddpipeline` schema is ever exposed via the auto-generated REST API.
+-- Defense-in-depth: enable Row Level Security on every table in this schema.
+--
+-- Deployment is Option A (Supabase = managed Postgres only). The backend connects
+-- as role `postgres` (rolbypassrls = true), so RLS never affects it. We add NO
+-- policies on purpose: with RLS on and no policy, the Supabase `anon` /
+-- `authenticated` (PostgREST) roles can read/write nothing, even if the
+-- `tddpipeline` schema were ever exposed through the auto-generated REST API.
+--
+-- Idempotent + lock-safe:
+--   * Only touches tables that do NOT already have RLS, so this is a clean no-op
+--     on an environment where RLS was enabled out of band (e.g. via the Supabase
+--     dashboard) — no ACCESS EXCLUSIVE lock is taken in that case.
+--   * `lock_timeout` keeps a fresh-deploy ALTER from blocking forever behind a
+--     previous instance's ACCESS SHARE locks during a zero-downtime rollout.
 
-ALTER TABLE deal_history             ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deal_notes               ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deal_stages              ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deal_statuses            ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deal_types               ENABLE ROW LEVEL SECURITY;
-ALTER TABLE deals                    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE departments              ENABLE ROW LEVEL SECURITY;
-ALTER TABLE flyway_schema_history    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE probability_situation_map ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rule_config              ENABLE ROW LEVEL SECURITY;
-ALTER TABLE users                    ENABLE ROW LEVEL SECURITY;
+DO $$
+DECLARE
+    tbl text;
+BEGIN
+    SET LOCAL lock_timeout = '5s';
+    FOR tbl IN
+        SELECT tablename
+        FROM pg_tables
+        WHERE schemaname = current_schema()
+          AND NOT rowsecurity
+        ORDER BY tablename
+    LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tbl);
+        RAISE NOTICE 'RLS enabled on %', tbl;
+    END LOOP;
+END $$;
