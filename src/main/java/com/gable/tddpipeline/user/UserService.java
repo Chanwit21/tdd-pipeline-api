@@ -109,6 +109,7 @@ public class UserService {
         m.put("departmentId", u.getDepartment() != null ? u.getDepartment().getId() : null);
         m.put("departmentCode", u.getDepartment() != null ? u.getDepartment().getCode() : null);
         m.put("active", u.isActive());
+        m.put("lastLoginAt", u.getLastLoginAt());
         return m;
     }
 

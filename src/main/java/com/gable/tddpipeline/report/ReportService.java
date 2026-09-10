@@ -24,17 +24,17 @@ public class ReportService {
 
     /* ---------- 6.1 PR by Team ---------- */
     @Transactional(readOnly = true)
-    public Map<String, Object> prByTeam(Long departmentId, int year, AppUserPrincipal me) {
+    public Map<String, Object> prByTeam(List<Long> departmentId, int year, AppUserPrincipal me) {
         List<Deal> deals = scopedDeals(departmentId, me).stream()
                 .filter(d -> "PR".equals(d.getDealStatus()))
                 .filter(d -> YearMonth.from(d.getClosedDate()).getYear() == year)
                 .toList();
-        return monthPivot(deals, "แผนก", d -> d.getDepartment().getCode(), rowLabelsDepartments());
+        return monthPivot(deals, "Department", d -> d.getDepartment().getCode(), rowLabelsDepartments(departmentId, me));
     }
 
     /* ---------- 6.3 Pipeline by Team ---------- */
     @Transactional(readOnly = true)
-    public Map<String, Object> pipelineByTeam(Long departmentId, int year,
+    public Map<String, Object> pipelineByTeam(List<Long> departmentId, int year,
                                               List<String> dealStatus, List<String> probability,
                                               List<String> dealStage, AppUserPrincipal me) {
         List<Deal> deals = scopedDeals(departmentId, me).stream()
@@ -43,12 +43,12 @@ public class ReportService {
                 .filter(d -> isEmpty(probability) || probability.contains(d.getProbability()))
                 .filter(d -> isEmpty(dealStage) || dealStage.contains(d.getDealStage()))
                 .toList();
-        return monthPivot(deals, "แผนก", d -> d.getDepartment().getCode(), rowLabelsDepartments());
+        return monthPivot(deals, "Department", d -> d.getDepartment().getCode(), rowLabelsDepartments(departmentId, me));
     }
 
     /* ---------- 6.2 SMT QBR ---------- */
     @Transactional(readOnly = true)
-    public Map<String, Object> smtQbr(Long departmentId, int year, List<String> dealStatus, AppUserPrincipal me) {
+    public Map<String, Object> smtQbr(List<Long> departmentId, int year, List<String> dealStatus, AppUserPrincipal me) {
         List<Deal> deals = scopedDeals(departmentId, me).stream()
                 .filter(d -> YearMonth.from(d.getClosedDate()).getYear() == year)
                 .filter(d -> isEmpty(dealStatus) || dealStatus.contains(d.getDealStatus()))
@@ -56,6 +56,7 @@ public class ReportService {
 
         List<String> rowLabels = masterConfig.probabilityValues();
         List<String> columns = masterConfig.dealStages().stream()
+                .filter(s -> isEmpty(dealStatus) || s.allowedForList().stream().anyMatch(dealStatus::contains))
                 .map(com.gable.tddpipeline.domain.DealStage::getName).toList();
 
         return pivot(deals, "Probability", Deal::getProbability, rowLabels,
@@ -119,15 +120,16 @@ public class ReportService {
         return m;
     }
 
-    private List<String> rowLabelsDepartments() {
+    private List<String> rowLabelsDepartments(List<Long> departmentId, AppUserPrincipal me) {
         return masterConfig.departments().stream()
+                .filter(d -> me.isAdmin() ? (departmentId == null || departmentId.isEmpty() || departmentId.contains(d.getId())) : Objects.equals(d.getId(), me.getDepartmentId()))
                 .map(com.gable.tddpipeline.domain.Department::getCode).toList();
     }
 
-    private List<Deal> scopedDeals(Long departmentId, AppUserPrincipal me) {
-        Long scope = me.isAdmin() ? departmentId : me.getDepartmentId();
+    private List<Deal> scopedDeals(List<Long> departmentId, AppUserPrincipal me) {
+        Long scope = me.isAdmin() ? null : Objects.requireNonNullElse(me.getDepartmentId(), -1L);
         return dealRepo.findAll().stream()
-                .filter(d -> scope == null || Objects.equals(d.getDepartment().getId(), scope))
+                .filter(d -> scope != null ? Objects.equals(d.getDepartment().getId(), scope) : (departmentId == null || departmentId.isEmpty() || departmentId.contains(d.getDepartment().getId())))
                 .toList();
     }
 

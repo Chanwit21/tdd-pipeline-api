@@ -18,14 +18,14 @@ public class ReportController {
 
     @GetMapping("/api/reports/pr-by-team")
     public Map<String, Object> prByTeam(
-            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) List<Long> departmentId,
             @RequestParam(required = false) Integer year) {
         return service.prByTeam(departmentId, resolveYear(year), CurrentUser.get());
     }
 
     @GetMapping("/api/reports/smt-qbr")
     public Map<String, Object> smtQbr(
-            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) List<Long> departmentId,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) List<String> dealStatus) {
         return service.smtQbr(departmentId, resolveYear(year), dealStatus, CurrentUser.get());
@@ -33,7 +33,7 @@ public class ReportController {
 
     @GetMapping("/api/reports/pipeline-by-team")
     public Map<String, Object> pipelineByTeam(
-            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) List<Long> departmentId,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) List<String> dealStatus,
             @RequestParam(required = false) List<String> probability,
