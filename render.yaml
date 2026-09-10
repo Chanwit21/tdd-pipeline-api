@@ -1,0 +1,40 @@
+# Render Blueprint — deploy tdd-pipeline-api as a Docker web service.
+# https://render.com/docs/blueprint-spec
+#
+# DB is external (Supabase Postgres). Set the datasource + CORS env vars in the
+# Render dashboard (marked sync:false below) — never commit them.
+#
+# Free plan = 512 MB RAM; the JVM is capped below to fit. It cold-starts (~50 s)
+# after 15 min idle. Upgrade to Starter for an always-on instance.
+
+services:
+  - type: web
+    name: tdd-pipeline-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    envVars:
+      # --- Supabase Postgres (Session pooler, port 5432) — set in dashboard ---
+      - key: SPRING_DATASOURCE_URL
+        sync: false        # jdbc:postgresql://aws-0-<region>.pooler.supabase.com:5432/postgres?currentSchema=tddpipeline
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false        # postgres.<project-ref>
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false        # Supabase project DB password
+      - key: APP_DB_SCHEMA
+        value: tddpipeline
+      # --- Auth ---
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRATION_MS
+        value: "28800000"
+      # --- CORS: the Vercel URL(s), comma-separated ---
+      - key: APP_CORS_ORIGINS
+        sync: false        # https://tdd-pipeline-web.vercel.app
+      # --- fit the JVM into the 512 MB free plan ---
+      - key: JAVA_TOOL_OPTIONS
+        value: "-XX:MaxRAMPercentage=70 -XX:+UseSerialGC"
