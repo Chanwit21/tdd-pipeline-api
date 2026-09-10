@@ -22,9 +22,20 @@ spring:
     create-schemas: true
 
 server:
-  port: 8080
+  port: ${PORT:8080}
   error:
     include-message: always
+  forward-headers-strategy: framework   # trust X-Forwarded-* from the platform proxy
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 app:
   jwt:
