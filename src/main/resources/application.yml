@@ -2,7 +2,7 @@ spring:
   application:
     name: tdd-pipeline
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/tddpipeline}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/tddpipeline?currentSchema=tddpipeline}
     username: ${SPRING_DATASOURCE_USERNAME:tdd}
     password: ${SPRING_DATASOURCE_PASSWORD:tdd_secret}
   jpa:
@@ -11,11 +11,15 @@ spring:
     open-in-view: false
     properties:
       hibernate:
+        default_schema: ${APP_DB_SCHEMA:tddpipeline}
         jdbc:
           time_zone: UTC
   flyway:
     enabled: true
     baseline-on-migrate: true
+    schemas: ${APP_DB_SCHEMA:tddpipeline}
+    default-schema: ${APP_DB_SCHEMA:tddpipeline}
+    create-schemas: true
 
 server:
   port: 8080

@@ -18,15 +18,18 @@ Backend ของ **TDD Pipeline Web Application** (Phase 1)
 mvn spring-boot:run          # http://localhost:8080
 ```
 
-Flyway จะสร้าง schema + seed master config + seed deal ตัวอย่างให้อัตโนมัติตอน boot
+ทุกตาราง (รวม `flyway_schema_history`) อยู่ใน schema **`tddpipeline`** ไม่ใช่ `public`
+Flyway สร้าง schema + รัน migration + seed ให้อัตโนมัติตอน boot (`flyway.schemas=tddpipeline`,
+`hibernate.default_schema=tddpipeline`, JDBC URL มี `?currentSchema=tddpipeline`)
 `DataInitializer` seed user: `admin / admin1234` (ADMIN), `manager.irm / manager1234` (MANAGER แผนก IRM)
 
 ### Env
 
 | ตัวแปร | default |
 |---|---|
-| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/tddpipeline` |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/tddpipeline?currentSchema=tddpipeline` |
 | `SPRING_DATASOURCE_USERNAME` / `_PASSWORD` | `tdd` / `tdd_secret` |
+| `APP_DB_SCHEMA` | `tddpipeline` (schema ที่ Flyway + Hibernate ใช้) |
 | `JWT_SECRET` | (ต้องตั้งใน prod, ≥ 32 bytes) |
 | `JWT_EXPIRATION_MS` | `28800000` (8 ชม.) |
 | `APP_CORS_ORIGINS` | `http://localhost:3000` |
