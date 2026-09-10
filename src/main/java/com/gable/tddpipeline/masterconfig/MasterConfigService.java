@@ -77,8 +77,10 @@ public class MasterConfigService {
                 "defaultOwner", Optional.ofNullable(d.getDefaultOwner()).orElse(""))).toList());
         m.put("dealTypes", dealTypeNames());
         m.put("dealStatuses", dealStatusNames());
+        m.put("typeOptions", dealTypeRepo.findAllByOrderBySortOrderAsc());
+        m.put("statusOptions", dealStatusRepo.findAllByOrderBySortOrderAsc());
         m.put("dealStages", dealStages().stream().map(s -> Map.of(
-                "name", s.getName(), "allowedFor", s.allowedForList())).toList());
+                "id", s.getId(), "name", s.getName(), "allowedFor", s.allowedForList())).toList());
         m.put("probabilities", probabilityMap().stream().map(p -> Map.of(
                 "probability", p.getProbability(), "situation", p.getSituation())).toList());
         Map<String, Object> rules = new LinkedHashMap<>();
@@ -92,33 +94,46 @@ public class MasterConfigService {
 
     @Transactional
     public Department saveDepartment(Department input) {
+        requireName(input.getCode(), 20);
+        requireName(input.getName(), 100);
+        if (input.getDefaultOwner() != null && input.getDefaultOwner().length() > 100) throw new BusinessException("OWNER", "Owner must not exceed 100 characters");
+        input.setCode(input.getCode().trim()); input.setName(input.getName().trim());
         Department d = input.getId() != null
                 ? departmentRepo.findById(input.getId()).orElseThrow()
                 : new Department();
-        if (d.getId() == null && departmentRepo.existsByCodeIgnoreCase(input.getCode())) {
+        if (departmentRepo.findAll().stream().anyMatch(x -> x.getCode().equalsIgnoreCase(input.getCode()) && !Objects.equals(x.getId(), input.getId()))) {
             throw new BusinessException("DUP-CODE", "รหัสแผนกนี้มีอยู่แล้ว: " + input.getCode());
         }
         d.setCode(input.getCode());
         d.setName(input.getName());
         d.setDefaultOwner(input.getDefaultOwner());
-        d.setSortOrder(input.getSortOrder());
+        if (input.getId() == null) d.setSortOrder(input.getSortOrder());
         return departmentRepo.save(d);
     }
 
     @Transactional
     public DealStage saveStage(DealStage input) {
+        requireName(input.getName(), 80); input.setName(input.getName().trim());
+        if (input.allowedForList().isEmpty() || !dealStatusNames().containsAll(input.allowedForList())) throw new BusinessException("STAGE-STATUS", "Select at least one valid Deal Status");
+        if (dealStages().stream().anyMatch(x -> x.getName().equalsIgnoreCase(input.getName()) && !Objects.equals(x.getId(), input.getId()))) throw new BusinessException("DUP-STAGE", "Deal Stage already exists");
         DealStage s = input.getId() != null
                 ? dealStageRepo.findById(input.getId()).orElseThrow()
                 : new DealStage();
+        if (s.getId() != null) {
+            assertRenameAllowed("dealStage", s.getName(), input.getName(), Set.of("Won", "PO", "Lost", "Cancelled", "On Hold"));
+            boolean incompatible = dealRepo.count((r,q,cb) -> cb.and(cb.equal(r.get("dealStage"), s.getName()), cb.not(r.get("dealStatus").in(input.allowedForList())))) > 0;
+            if (incompatible) throw new BusinessException("STAGE-INUSE", "Cannot remove a status mapping used by existing deals");
+        }
         s.setName(input.getName());
         s.setAllowedFor(input.getAllowedFor());
-        s.setSortOrder(input.getSortOrder());
+        if (input.getId() == null) s.setSortOrder(input.getSortOrder());
         return dealStageRepo.save(s);
     }
 
     @Transactional
     public void deleteStage(Integer id) {
         DealStage s = dealStageRepo.findById(id).orElseThrow();
+        if (Set.of("Won", "PO", "Lost", "Cancelled", "On Hold").contains(s.getName())) throw new BusinessException("SYSTEM-STAGE", "Cannot delete a system Deal Stage");
         boolean inUse = dealRepo.count((root, q, cb) -> cb.equal(root.get("dealStage"), s.getName())) > 0;
         if (inUse) {
             throw new BusinessException("XREF-INUSE-DELETE",
@@ -129,9 +144,55 @@ public class MasterConfigService {
 
     @Transactional
     public void updateRule(String key, String value) {
+        if (!Set.of(KEY_WON_PROB, KEY_PO_PROB).contains(key) || !probabilityValues().contains(value)) throw new BusinessException("RULE-VALUE", "Invalid rule or Probability");
         RuleConfig rc = ruleConfigRepo.findById(key)
                 .orElseThrow(() -> new BusinessException("RULE-KEY", "ไม่พบ config: " + key));
         rc.setConfigValue(value);
         ruleConfigRepo.save(rc);
     }
+
+    private void requireName(String value, int max) {
+        if (value == null || value.isBlank() || value.trim().length() > max) throw new BusinessException("MASTER-NAME", "Name is required (maximum " + max + " characters)");
+    }
+
+    private void assertRenameAllowed(String field, String oldName, String name, Set<String> reserved) {
+        if (Objects.equals(oldName, name)) return;
+        if (reserved.contains(oldName) || dealRepo.count((r,q,cb) -> cb.equal(r.get(field), oldName)) > 0)
+            throw new BusinessException("MASTER-INUSE", "Cannot rename a system value or a value referenced by existing deals");
+    }
+
+    @Transactional
+    public DealType saveType(DealType input) {
+        requireName(input.getName(), 50); String name = input.getName().trim();
+        if (dealTypeRepo.findAll().stream().anyMatch(x -> x.getName().equalsIgnoreCase(name) && !Objects.equals(x.getId(), input.getId()))) throw new BusinessException("DUP-TYPE", "Deal Type already exists");
+        DealType item = input.getId() == null ? new DealType() : dealTypeRepo.findById(input.getId()).orElseThrow();
+        if (item.getId() != null) assertRenameAllowed("dealType", item.getName(), name, Set.of());
+        item.setName(name); if (input.getId() == null) item.setSortOrder(input.getSortOrder()); return dealTypeRepo.save(item);
+    }
+
+    @Transactional
+    public DealStatus saveStatus(DealStatus input) {
+        requireName(input.getName(), 50); String name = input.getName().trim();
+        if (dealStatusRepo.findAll().stream().anyMatch(x -> x.getName().equalsIgnoreCase(name) && !Objects.equals(x.getId(), input.getId()))) throw new BusinessException("DUP-STATUS", "Deal Status already exists");
+        DealStatus item = input.getId() == null ? new DealStatus() : dealStatusRepo.findById(input.getId()).orElseThrow();
+        if (item.getId() != null) {
+            assertRenameAllowed("dealStatus", item.getName(), name, Set.of("Follow Up", "PR", "Inactive"));
+            if (!item.getName().equals(name) && dealStages().stream().anyMatch(s -> s.allowedForList().contains(item.getName()))) throw new BusinessException("STATUS-INUSE", "Status is referenced by Deal Stage mappings");
+        }
+        item.setName(name); if (input.getId() == null) item.setSortOrder(input.getSortOrder()); return dealStatusRepo.save(item);
+    }
+
+    @Transactional
+    public void deleteNamed(String kind, Integer id) {
+        if ("types".equals(kind)) {
+            DealType item = dealTypeRepo.findById(id).orElseThrow();
+            assertRenameAllowed("dealType", item.getName(), "", Set.of()); dealTypeRepo.delete(item);
+        } else if ("statuses".equals(kind)) {
+            DealStatus item = dealStatusRepo.findById(id).orElseThrow();
+            assertRenameAllowed("dealStatus", item.getName(), "", Set.of("Follow Up", "PR", "Inactive"));
+            if (dealStages().stream().anyMatch(s -> s.allowedForList().contains(item.getName()))) throw new BusinessException("STATUS-INUSE", "Status is referenced by Deal Stage mappings");
+            dealStatusRepo.delete(item);
+        } else throw new BusinessException("MASTER-KIND", "Invalid master category");
+    }
 }
+

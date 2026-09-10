@@ -16,9 +16,13 @@ public final class DealSpecifications {
         return (root, cq, cb) -> {
             List<Predicate> ps = new ArrayList<>();
 
-            Long deptId = forcedDepartmentId != null ? forcedDepartmentId : q.departmentId();
-            if (deptId != null) {
-                ps.add(cb.equal(root.get("department").get("id"), deptId));
+            if (forcedDepartmentId != null) ps.add(cb.equal(root.get("department").get("id"), forcedDepartmentId));
+            else if (q.departmentId() != null && !q.departmentId().isEmpty()) ps.add(root.get("department").get("id").in(q.departmentId()));
+            if (q.probability() != null && !q.probability().isEmpty()) ps.add(root.get("probability").in(q.probability()));
+            if (q.createdYear() != null) {
+                var start = java.time.LocalDate.of(q.createdYear(), 1, 1);
+                ps.add(cb.greaterThanOrEqualTo(root.get("createdDate"), start));
+                ps.add(cb.lessThan(root.get("createdDate"), start.plusYears(1)));
             }
             if (q.dealStatus() != null && !q.dealStatus().isEmpty()) {
                 ps.add(root.get("dealStatus").in(q.dealStatus()));

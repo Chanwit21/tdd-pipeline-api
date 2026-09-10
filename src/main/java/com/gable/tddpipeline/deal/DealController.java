@@ -22,19 +22,20 @@ public class DealController {
 
     @GetMapping
     public Map<String, Object> list(
-            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) List<Long> departmentId,
             @RequestParam(required = false) List<String> dealStatus,
             @RequestParam(required = false) List<String> dealStage,
             @RequestParam(required = false) String closedFrom,
             @RequestParam(required = false) String closedTo,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Boolean overdueOnly,
+            @RequestParam(required = false) List<String> probability,
+            @RequestParam(required = false) Integer createdYear,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size) {
 
-        var query = new DealQuery(departmentId, dealStatus, dealStage, closedFrom, closedTo, search, overdueOnly);
-        var pageable = PageRequest.of(page, Math.min(size, 200),
-                Sort.by(Sort.Direction.DESC, "closedDate").and(Sort.by("recordId")));
+        var query = new DealQuery(departmentId, dealStatus, dealStage, closedFrom, closedTo, search, overdueOnly, probability, createdYear);
+        var pageable = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 200)), Sort.by("recordId"));
         Page<DealResponse> result = dealService.list(query, pageable, CurrentUser.get());
         return Map.of(
                 "content", result.getContent(),

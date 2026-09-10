@@ -35,6 +35,8 @@ public class AuthController {
             AppUserPrincipal principal = (AppUserPrincipal) auth.getPrincipal();
             String token = tokenProvider.generate(principal);
             User user = userRepository.findById(principal.getId()).orElseThrow();
+            user.setLastLoginAt(java.time.Instant.now());
+            userRepository.save(user);
             return Map.of(
                     "token", token,
                     "expiresInMs", tokenProvider.getExpirationMs(),

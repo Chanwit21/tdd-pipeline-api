@@ -20,14 +20,23 @@ public class DashboardService {
     private final DealRepository dealRepo;
 
     @Transactional(readOnly = true)
-    public Map<String, Object> summary(Long departmentId, String from, String to, AppUserPrincipal me) {
-        Long scopeDept = me.isAdmin() ? departmentId : me.getDepartmentId();
+    public Map<String, Object> summary(List<Long> departmentId, String from, String to, List<String> probability,
+                                      List<String> dealStatus, Integer createdYear, Integer quarter, AppUserPrincipal me) {
+        Long scopeDept = me.isAdmin() ? null : Objects.requireNonNullElse(me.getDepartmentId(), -1L);
+        if (quarter != null && (quarter < 1 || quarter > 4)) throw new com.gable.tddpipeline.web.BusinessException("QUARTER", "Quarter must be 1–4");
 
         YearMonth fromYm = parse(from);
         YearMonth toYm = parse(to);
 
-        List<Deal> deals = dealRepo.findAll().stream()
-                .filter(d -> scopeDept == null || Objects.equals(d.getDepartment().getId(), scopeDept))
+        List<Deal> scoped = dealRepo.findAll().stream()
+                .filter(d -> scopeDept != null ? Objects.equals(d.getDepartment().getId(), scopeDept) : departmentId == null || departmentId.isEmpty() || departmentId.contains(d.getDepartment().getId()))
+                .filter(d -> probability == null || probability.isEmpty() || probability.contains(d.getProbability()))
+                .filter(d -> dealStatus == null || dealStatus.isEmpty() || dealStatus.contains(d.getDealStatus()))
+                .filter(d -> inRange(YearMonth.from(d.getClosedDate()), fromYm, toYm))
+                .toList();
+        List<Deal> deals = scoped.stream()
+                .filter(d -> createdYear == null || d.getCreatedDate().getYear() == createdYear)
+                .filter(d -> quarter == null || (d.getCreatedDate().getMonthValue() - 1) / 3 + 1 == quarter)
                 .toList();
 
         List<Deal> active = deals.stream()
@@ -39,7 +48,7 @@ public class DashboardService {
                 .filter(d -> "Best Case".equals(d.getSituation())).toList());
         BigDecimal wonAmount = sum(deals.stream()
                 .filter(d -> Set.of("Won", "PO").contains(d.getDealStage()))
-                .filter(d -> inRange(YearMonth.from(d.getClosedDate()), fromYm, toYm))
+                .filter(d -> YearMonth.from(d.getClosedDate()).equals(YearMonth.now()))
                 .toList());
 
         List<Deal> overdue = deals.stream().filter(DealMapper::isOverdue)
@@ -47,6 +56,8 @@ public class DashboardService {
                 .toList();
 
         Map<String, Object> result = new LinkedHashMap<>();
+        result.put("byYear", scoped.stream().collect(Collectors.groupingBy(d -> d.getCreatedDate().getYear(), TreeMap::new, Collectors.toList())).entrySet().stream().map(e -> Map.of(
+                "year", e.getKey(), "dealCount", e.getValue().size(), "amount", sum(e.getValue()))).toList());
         result.put("statCards", Map.of(
                 "totalPipelineAmount", totalPipeline,
                 "bestCaseAmount", bestCase,
@@ -62,13 +73,14 @@ public class DashboardService {
                 "closedDate", YearMonth.from(d.getClosedDate()).toString(),
                 "amount", d.getAmount())).toList());
 
-        if (me.isAdmin()) {
+        {
             Map<String, List<Deal>> byDept = active.stream()
                     .collect(Collectors.groupingBy(d -> d.getDepartment().getCode(), TreeMap::new, Collectors.toList()));
             result.put("byDepartment", byDept.entrySet().stream().map(e -> Map.of(
                     "department", e.getKey(),
                     "dealCount", e.getValue().size(),
                     "amount", sum(e.getValue()),
+                    "wonAmount", sum(e.getValue().stream().filter(d -> Set.of("Won", "PO").contains(d.getDealStage()) && YearMonth.from(d.getClosedDate()).equals(YearMonth.now())).toList()),
                     "bestCase", sum(e.getValue().stream()
                             .filter(d -> "Best Case".equals(d.getSituation())).toList()))).toList());
         }

@@ -39,6 +39,15 @@ public class MasterConfigController {
 
     public record RuleUpdate(String key, String value) {}
 
+    @PostMapping("/api/admin/master-config/types")
+    public com.gable.tddpipeline.domain.DealType saveType(@RequestBody com.gable.tddpipeline.domain.DealType body) { return service.saveType(body); }
+
+    @PostMapping("/api/admin/master-config/statuses")
+    public com.gable.tddpipeline.domain.DealStatus saveStatus(@RequestBody com.gable.tddpipeline.domain.DealStatus body) { return service.saveStatus(body); }
+
+    @DeleteMapping("/api/admin/master-config/{kind:types|statuses}/{id}")
+    public Map<String, Object> deleteNamed(@PathVariable String kind, @PathVariable Integer id) { service.deleteNamed(kind, id); return Map.of("deleted", true); }
+
     @PutMapping("/api/admin/master-config/rules")
     public Map<String, Object> updateRule(@RequestBody RuleUpdate body) {
         service.updateRule(body.key(), body.value());

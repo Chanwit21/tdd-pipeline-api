@@ -39,7 +39,7 @@ public class DealService {
 
     @Transactional(readOnly = true)
     public Page<DealResponse> list(DealQuery query, Pageable pageable, AppUserPrincipal me) {
-        Long forcedDept = me.isAdmin() ? null : me.getDepartmentId();
+        Long forcedDept = me.isAdmin() ? null : Objects.requireNonNullElse(me.getDepartmentId(), -1L);
         var spec = DealSpecifications.build(query, forcedDept);
         Page<Deal> page = dealRepo.findAll(spec, pageable);
         String wonProb = Objects.requireNonNullElse(masterConfig.ruleValue(MasterConfigService.KEY_WON_PROB), "75% - 98%");
