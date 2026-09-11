@@ -1,3 +1,6 @@
+-- Manual DB script — run after V2, in filename order. See db/scripts/README.md.
+SET search_path TO tddpipeline;
+
 -- Sample deals so the UI isn't empty on first boot. created_by NULL = imported/seed.
 INSERT INTO deals (record_id, department_id, deal_owner, customer, deal_name, deal_type,
                    deal_status, deal_stage, probability, situation, closed_date, amount,

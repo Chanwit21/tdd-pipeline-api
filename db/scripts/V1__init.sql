@@ -1,3 +1,8 @@
+-- Manual DB script — run by hand (psql or Supabase SQL editor), in filename order.
+-- See db/scripts/README.md. Not applied automatically by the app.
+CREATE SCHEMA IF NOT EXISTS tddpipeline;
+SET search_path TO tddpipeline;
+
 -- ============ Departments & Users ============
 CREATE TABLE departments (
     id            BIGSERIAL PRIMARY KEY,

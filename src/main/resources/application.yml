@@ -14,12 +14,9 @@ spring:
         default_schema: ${APP_DB_SCHEMA:tddpipeline}
         jdbc:
           time_zone: UTC
-  flyway:
-    enabled: true
-    baseline-on-migrate: true
-    schemas: ${APP_DB_SCHEMA:tddpipeline}
-    default-schema: ${APP_DB_SCHEMA:tddpipeline}
-    create-schemas: true
+
+# No Flyway / auto-migration: the schema is provisioned by hand — see db/scripts/README.md.
+# The app only ever connects to an already-correct schema (ddl-auto stays "none" above).
 
 server:
   port: ${PORT:8080}
