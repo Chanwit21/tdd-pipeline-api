@@ -1,3 +1,5 @@
+-- Manual DB script — run after V4, in filename order. See db/scripts/README.md.
+--
 -- Defense-in-depth: enable Row Level Security on every table in this schema.
 --
 -- Deployment is Option A (Supabase = managed Postgres only). The backend connects
@@ -12,6 +14,8 @@
 --     dashboard) — no ACCESS EXCLUSIVE lock is taken in that case.
 --   * `lock_timeout` keeps a fresh-deploy ALTER from blocking forever behind a
 --     previous instance's ACCESS SHARE locks during a zero-downtime rollout.
+
+SET search_path TO tddpipeline;
 
 DO $$
 DECLARE

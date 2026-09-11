@@ -4,6 +4,10 @@
 # DB is external (Supabase Postgres). Set the datasource + CORS env vars in the
 # Render dashboard (marked sync:false below) — never commit them.
 #
+# No migration framework: the app never touches DDL (ddl-auto: none). Apply any
+# pending db/scripts/*.sql to Supabase by hand BEFORE deploying code that needs
+# them — see db/scripts/README.md.
+#
 # Free plan = 512 MB RAM; the JVM is capped below to fit. It cold-starts (~50 s)
 # after 15 min idle. Upgrade to Starter for an always-on instance.
 

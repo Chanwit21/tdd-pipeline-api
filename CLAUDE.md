@@ -9,7 +9,7 @@ Backend ของ TDD Pipeline. **ขยายจาก** workspace `CLAUDE.md` 
 | | |
 |---|---|
 | Runtime | Java 17 + Spring Boot 3.3 |
-| DB | PostgreSQL 16 + Flyway — ทุกตารางอยู่ใน schema **`tddpipeline`** ([ADR-0004](../tdd-support-workspace/docs/adr/0004-dedicated-postgres-schema.md)) |
+| DB | PostgreSQL 16, schema **`tddpipeline`** ([ADR-0004](../tdd-support-workspace/docs/adr/0004-dedicated-postgres-schema.md)) — **no migration framework**, SQL applied by hand ([ADR-0006](../tdd-support-workspace/docs/adr/0006-manual-sql-no-migration-framework.md)) |
 | Auth | Spring Security + JWT (jjwt 0.12), stateless ([ADR-0003](../tdd-support-workspace/docs/adr/0003-jwt-localstorage-client-auth.md)) |
 
 ## Dev
@@ -20,8 +20,11 @@ mvn spring-boot:run          # http://localhost:8080
 mvn test                     # DealValidatorTest — ต้องผ่านก่อนเปิด MR
 ```
 
-Flyway สร้าง schema `tddpipeline` + รัน migration + seed ให้ตอน boot.
-`DataInitializer` seed: `admin/admin1234` (ADMIN), `manager.irm/manager1234` (MANAGER แผนก IRM).
+Schema ไม่ได้สร้างเองตอน boot — `docker compose up` mount `db/scripts/` เข้า
+Postgres container's `docker-entrypoint-initdb.d` (รันครั้งเดียวตอน volume ว่าง)
+ดู [`db/scripts/README.md`](db/scripts/README.md). แยกจากนั้น `DataInitializer`
+(Java, idempotent, รันทุกครั้งที่ boot — ไม่ใช่ SQL script) seed
+`admin/admin1234` (ADMIN) + `manager.irm/manager1234` (MANAGER แผนก IRM) ถ้ายังไม่มี.
 
 ### Env
 
@@ -48,7 +51,7 @@ src/main/java/com/gable/tddpipeline/
 ├── masterconfig/    GET /api/master-config + admin CRUD
 ├── user/            /api/admin/users
 └── web/             GlobalExceptionHandler, error types
-src/main/resources/db/migration/   V1__init · V2__seed_master_config · V3__seed_sample_deals
+db/scripts/                        V1__init · V2__seed_master_config · … — รันมือ, ดู db/scripts/README.md
 ```
 
 ## กฎเฉพาะ repo นี้ ([ADR-0005](../tdd-support-workspace/docs/adr/0005-validation-mirrored-error-code-contract.md))
@@ -61,12 +64,15 @@ src/main/resources/db/migration/   V1__init · V2__seed_master_config · V3__see
   ไม่ผูกกับข้อความ
 - **Situation + Deal Owner คำนวณ/lock ฝั่ง server เสมอ** — ไม่เชื่อค่าจาก client
 - `is_legacy_migrated` deal: `PUT /api/deals/{id}` ใช้ validation เดียวกับ deal ปกติ — ไม่มี bypass
-- Migration SQL **ไม่ qualify schema** (Flyway ตั้ง search_path ให้). ตาราง master config +
-  seed ทั้งหมดผ่าน Flyway ไม่ใช่ `ddl-auto`
+- **ไม่มี migration framework** ([ADR-0006](../tdd-support-workspace/docs/adr/0006-manual-sql-no-migration-framework.md))
+  — schema change = เขียน `db/scripts/V{n}__desc.sql` แล้วรันมือกับ Supabase (SQL editor
+  หรือ psql) **ก่อน** deploy โค้ดที่พึ่งมัน. `ddl-auto: none` เสมอ — แอพไม่แตะ DDL เอง
 - เพิ่ม/แก้ business rule = แตะ `DealValidator.java` + `DealValidatorTest` + spec table +
   `tdd-pipeline-web` `src/lib/validation.ts`
 
 ## Deploy
 
 `Dockerfile` (multi-stage maven → jre-alpine). Compose อยู่ที่
-`tdd-support-workspace/docker-compose.yml`.
+`tdd-support-workspace/docker-compose.yml`. Schema change ที่ prod (Render + Supabase) ต้อง
+รัน `db/scripts/` ที่เกี่ยวข้องกับ Supabase มือก่อน redeploy เสมอ — runbook เต็มที่
+`tdd-support-workspace/DEPLOY.md`.

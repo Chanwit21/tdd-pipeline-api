@@ -1,3 +1,6 @@
+-- Manual DB script — run after V1, in filename order. See db/scripts/README.md.
+SET search_path TO tddpipeline;
+
 -- Departments (from Master_Config)
 INSERT INTO departments (code, name, default_owner, sort_order) VALUES
   ('AMC', 'Account Management C', 'Somchai',  1),
